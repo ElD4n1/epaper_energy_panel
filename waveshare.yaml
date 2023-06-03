@@ -1,0 +1,193 @@
+
+esphome:
+  name: waveshare
+
+esp8266:
+  board: esp12e
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  services:
+    - service: refresh_display
+      then:
+        - component.update: epaper_display
+
+ota:
+  password: "e9e82828012696b648d92c6ad8276b98"
+
+wifi:
+  ssid: "Voyager"
+  password: "BonVoyage"
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Waveshare Fallback Hotspot"
+    password: "iM3hz047EQ8m"
+
+captive_portal:
+    
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+font:
+  - file: "gfonts://Roboto"
+    id: medium
+    size: 20
+  - file: "gfonts://Roboto"
+    id: small
+    size: 14
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: icon_medium
+    size: 30
+    glyphs: [
+      "󰖙", # mdi-weather-sunny
+      "󰌶" # mdi-lightbulb-outline
+    ]
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: icon_small
+    size: 14
+    glyphs: [
+      "󱛡", # mdi-calendar-clock-outline
+    ]
+
+spi:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+
+display:
+  - platform: waveshare_epaper
+    id: epaper_display
+    cs_pin: GPIO15
+    dc_pin: GPIO4
+    busy_pin: GPIO5
+    reset_pin: GPIO2
+    model: 4.20in
+    rotation: 0°
+    update_interval: 10min
+    lambda: |-
+      // General constants
+      static int display_height = 300;
+      static int display_width = 400;
+      // PV graph constants
+      static int pv_graph_position_x = 5;
+      static int pv_graph_position_y = 175;
+      // Battery percentage constants
+      static int battery_symbol_position_x = 15;
+      static int battery_symbol_position_y = 35;
+      static int battery_symbol_width = 70;
+      static int battery_symbol_height = 130;
+      static int battery_pole_rect_width = 15;
+      static int battery_pole_rect_height = 8;
+      int battery_percentage = 50;
+      if (!isnan(id(soc).state)) {
+        battery_percentage = int(id(soc).state);
+      }
+      // Battery change indicator constants
+      static int bat_change_margin_left = 6;
+      static int bat_change_line_length = 25;
+      static int bat_change_indicator_rect_margin = 5;
+      int battery_percentage_start_of_day = battery_percentage;
+      if (!isnan(id(soc_start_of_day).state))
+        battery_percentage_start_of_day = int(id(soc_start_of_day).state);
+      // Energy flows overview constants
+      static int energy_flow_max_value = 3000;
+      static int energy_flow_line_length = bat_change_line_length;
+      static int energy_flow_line_pos_x = 240;
+      static int energy_flow_bar_margin = bat_change_indicator_rect_margin;
+      static int energy_flow_margin_top = 40;
+      static int energy_flow_margin_right = 5;
+      #define NUM_ENERGY_FLOW_SENSORS 2
+      static homeassistant::HomeassistantSensor** energy_flow_sensors = new homeassistant::HomeassistantSensor*[NUM_ENERGY_FLOW_SENSORS] { 
+        id(production),
+        id(consumption)
+      };
+      static std::string* energy_flow_sensor_icons = new std::string[NUM_ENERGY_FLOW_SENSORS] { 
+        "󰖙", // mdi-weather-sunny
+        "󰌶" // mdi-lightbulb-outline
+      };
+
+      // Battery percentage symbol
+      static int battery_pole_position_x = battery_symbol_position_x + battery_symbol_width/2 - battery_pole_rect_width/2;
+      static int battery_pole_position_y = battery_symbol_position_y - battery_pole_rect_height + 1;
+      it.printf(battery_pole_position_x - 9, battery_pole_position_y - 25, id(medium), "%d%%", battery_percentage);
+      it.rectangle(battery_pole_position_x, battery_pole_position_y, battery_pole_rect_width, battery_pole_rect_height);
+      it.rectangle(battery_symbol_position_x, battery_symbol_position_y, battery_symbol_width, battery_symbol_height);
+      int battery_discharged_area_height = (100-battery_percentage)/100.0 * battery_symbol_height;
+      it.filled_rectangle(battery_symbol_position_x, battery_symbol_position_y + battery_discharged_area_height,
+       battery_symbol_width, battery_symbol_height - battery_discharged_area_height);
+      
+      // Battery percentage change indicator
+      int bat_change_indicator_line_pos_x = battery_symbol_position_x + battery_symbol_width + bat_change_margin_left;
+      int bat_change_indicator_line_pos_y = battery_symbol_position_y + battery_symbol_height * (100-battery_percentage_start_of_day)/100.0;
+      it.line(bat_change_indicator_line_pos_x, bat_change_indicator_line_pos_y,
+        bat_change_indicator_line_pos_x + bat_change_line_length, bat_change_indicator_line_pos_y);
+      static int bat_change_indicator_rect_pos_x = bat_change_indicator_line_pos_x + bat_change_indicator_rect_margin;
+      static int bat_change_indicator_rect_width = bat_change_line_length - 2 * bat_change_indicator_rect_margin;
+      int bat_change_percentage = battery_percentage - battery_percentage_start_of_day;
+      int bat_change_indicator_rect_height = abs(bat_change_percentage)/100.0 * battery_symbol_height;
+      static int bat_change_indicator_text_pos_x = bat_change_indicator_line_pos_x - 2;
+      static int bat_change_indicator_text_height = 14;
+      int bat_change_indicator_rect_pos_y;
+      int bat_change_indicator_text_pos_y;
+      char bat_change_indicator_text_sign;
+      if (bat_change_percentage >= 0) {
+        bat_change_indicator_rect_pos_y = bat_change_indicator_line_pos_y - bat_change_indicator_rect_height;
+        bat_change_indicator_text_pos_y = bat_change_indicator_rect_pos_y - bat_change_indicator_text_height - 3;
+        bat_change_indicator_text_sign = '+';
+      } else {
+        bat_change_indicator_rect_pos_y = bat_change_indicator_line_pos_y;
+        bat_change_indicator_text_pos_y = bat_change_indicator_rect_pos_y + bat_change_indicator_rect_height + 3;
+        bat_change_indicator_text_sign = '-';
+      }
+      it.filled_rectangle(bat_change_indicator_rect_pos_x, bat_change_indicator_rect_pos_y, bat_change_indicator_rect_width, bat_change_indicator_rect_height);
+      it.printf(bat_change_indicator_text_pos_x, bat_change_indicator_text_pos_y, id(small), "%c%d%%", bat_change_indicator_text_sign, abs(bat_change_percentage));
+
+      // Energy flows overview
+      int energy_flow_line_pos_y = energy_flow_margin_top;
+      for (int i = 0; i < NUM_ENERGY_FLOW_SENSORS; i++) {
+        it.printf(energy_flow_line_pos_x - 5 - 75, energy_flow_line_pos_y + 3 - 5, id(icon_medium), TextAlign::TOP_RIGHT, energy_flow_sensor_icons[i].c_str());
+        it.printf(energy_flow_line_pos_x - 5, energy_flow_line_pos_y + 1, id(medium), TextAlign::TOP_RIGHT, "%.0f Wh", energy_flow_sensors[i]->state);
+        it.line(energy_flow_line_pos_x, energy_flow_line_pos_y, energy_flow_line_pos_x, energy_flow_line_pos_y + energy_flow_line_length);
+        int energy_flow_bar_length = (display_width - energy_flow_line_pos_x - energy_flow_margin_right) * (1 - (energy_flow_max_value - energy_flow_sensors[i]->state) / energy_flow_max_value);
+        it.filled_rectangle(energy_flow_line_pos_x, energy_flow_line_pos_y + energy_flow_bar_margin, energy_flow_bar_length, energy_flow_line_length - 2 * energy_flow_bar_margin);
+        energy_flow_line_pos_y += energy_flow_line_length + energy_flow_margin_top;
+      }
+
+      // PV production graph
+      it.graph(pv_graph_position_x, pv_graph_position_y, id(leistung_pv_graph));
+
+      // Refresh date & time
+      auto time = id(homeassistant_time).now();
+      if (time.is_valid()) {
+        it.printf(display_width - 3 - 111, 4, id(icon_small), TextAlign::TOP_RIGHT, "󱛡");
+        it.strftime(display_width - 3, 3, id(small), TextAlign::TOP_RIGHT, "%d.%m.%Y %H:%M", time);
+      }
+
+sensor:
+  - platform: homeassistant
+    id: solar_power
+    entity_id: sensor.solar_power_3min_avg
+  - platform: homeassistant
+    id: production
+    entity_id: sensor.energy_production_today
+  - platform: homeassistant
+    id: consumption
+    entity_id: sensor.battery_discharged_left_sum
+  - platform: homeassistant
+    id: soc
+    entity_id: sensor.soc
+  - platform: homeassistant
+    id: soc_start_of_day
+    entity_id: sensor.soc_yesterday
+
+graph:
+  - id: leistung_pv_graph
+    sensor: solar_power
+    duration: 24h
+    width: 390
+    height: 120
+    min_value: 0
+    max_value: 300
