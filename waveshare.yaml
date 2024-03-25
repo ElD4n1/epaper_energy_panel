@@ -89,7 +89,7 @@ display:
       static int bat_change_margin_left = 6;
       static int bat_change_line_length = 25;
       static int bat_change_indicator_rect_margin = 5;
-      int battery_percentage_start_of_day = battery_percentage;
+      static int battery_percentage_start_of_day = battery_percentage;
       if (!isnan(id(soc_start_of_day).state))
         battery_percentage_start_of_day = int(id(soc_start_of_day).state);
       // Energy flows overview constants
@@ -175,7 +175,7 @@ sensor:
     entity_id: sensor.energy_production_today
   - platform: homeassistant
     id: consumption
-    entity_id: sensor.battery_discharged_left_sum
+    entity_id: sensor.consumed_energy_total_daily
   - platform: homeassistant
     id: soc
     entity_id: sensor.soc
